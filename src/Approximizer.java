@@ -63,6 +63,7 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 	
 	double[] refX = new double[4];
 	int overRefN = -1;
+	int betweenRefs = -1;
 	int x_shift = 0;
 
 	public Approximizer(JFrame window, JButton openButton, JLabel fileNameLabel) {
@@ -149,8 +150,10 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 	}
 	
 	private double f(double x, double A1, double B1, double A2, double B2, double k, double x0) {
-		double alpha = 1.0/(1+Math.exp(-k*(x-x0)));
-		return (1-alpha)*f1(x,A1,B1)+alpha*f1(x,A2,B2);
+		//double alpha = 1.0/(1+Math.exp(-k*(x-x0)));
+		//return (1-alpha)*f1(x,A1,B1)+alpha*f1(x,A2,B2);
+		//return (A1+(A2-A1)*alpha)*x+(B1+(B2-B1)*alpha);
+		return (1.0/x + x0)*A1*A2;
 	}
 	
 	private double[] fit(double x_start, double x_finish) {
@@ -428,6 +431,14 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 			double xx_ = xx(x_);
 			refX[overRefN] = xx_ > max_t ? max_t : (xx_< min_t ? min_t : xx_);
 			repaint();
+		} else if (betweenRefs!=-1) {
+			int x_ = e.getX() - x_shift;
+			double refX_space = refX[betweenRefs*2+1] - refX[betweenRefs*2];
+			double xx_left_ = xx(x_);
+			double xx_right_ = xx(x_)+refX_space;
+			refX[betweenRefs*2] = xx_left_;
+			refX[betweenRefs*2+1] = xx_right_;
+			repaint();
 		}
 	}
 
@@ -447,9 +458,20 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 			} else if(Math.abs(x_shift = x_-x(refX[3]))<5) {
 				setCursor(Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR));
 				overRefN = 3;
+			} else if(x_>x(refX[0]) && x_<x(refX[1])) {
+				setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+				x_shift = x_-x(refX[0]);
+				betweenRefs = 0;
+				overRefN = -1;
+			} else if(x_>x(refX[2]) && x_<x(refX[3])) {
+				setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+				x_shift = x_-x(refX[2]);
+				betweenRefs = 1;
+				overRefN = -1;
 			} else {
 				setCursor(Cursor.getDefaultCursor());
 				overRefN = -1;
+				betweenRefs = -1;
 			}
 		}
 	}

@@ -394,21 +394,23 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 				}
 			});
 			chooser.setCurrentDirectory(defaultFilePath);
-			chooser.showDialog(window, "Choose data file");
-			File[] tmp = chooser.getSelectedFiles();
-			if(tmp != null) {
-				PrintStream ps = null;
-				try {
-					defaultFilePath = tmp[0].getParentFile().getCanonicalFile();
-					ps = new PrintStream(new FileOutputStream(settingsFilePath));
-					ps.println("fp="+defaultFilePath.getPath());
-				} catch (IOException ee) {
-					
-				} finally {
-					if(ps!=null)
-						ps.close();
+			int result = chooser.showDialog(window, "Choose data file");
+			if(result == JFileChooser.APPROVE_OPTION) {
+				File[] tmp = chooser.getSelectedFiles();
+				if(tmp != null) {
+					PrintStream ps = null;
+					try {
+						defaultFilePath = tmp[0].getParentFile().getCanonicalFile();
+						ps = new PrintStream(new FileOutputStream(settingsFilePath));
+						ps.println("fp="+defaultFilePath.getPath());
+					} catch (IOException ee) {
+						
+					} finally {
+						if(ps!=null)
+							ps.close();
+					}
+					loadFiles(tmp);
 				}
-				loadFiles(tmp);
 			}
 		}
 	}

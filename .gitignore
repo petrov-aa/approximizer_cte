@@ -53,3 +53,8 @@ local.properties
 
 # Code Recommenders
 .recommenders/
+
+
+*.ini
+*.png
+

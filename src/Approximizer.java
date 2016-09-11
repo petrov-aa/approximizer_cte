@@ -52,9 +52,11 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 	
 	String settingsFilePath = "Approximizer_settings.ini";
 	File defaultFilePath;
-	File currentFile;
+	File[] currentFiles;
 	double[] t, volume;
 	double max_t, min_t, max_volume, min_volume;
+	double[] curve_x;
+	double k = 1;
 	int drawingWidth, drawingHeight;
 	int axisWidth = 17;
 	int plotWidth, plotHeight, plotXOrig, plotYOrig;
@@ -68,7 +70,7 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 		this.openButton = openButton;
 		this.fileNameLabel = fileNameLabel;
 		
-		currentFile = null;
+		currentFiles = null;
 		t = null;
 		volume = null;
 		
@@ -134,6 +136,23 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 		window.setMinimumSize(new Dimension(200,200));
 	}
 	
+	private double[] curve(double[] x, double A1, double B1, double A2, double B2, double k) {
+		double[] y = new double[x.length];
+		for(int i=0; i<x.length; i++) {
+			y[i] = f(x[i], A1, B1, A2, B2, k, (B2-B1)/(A1-A2));
+		}
+		return y;
+	}
+	
+	private double f1(double x, double A, double B) {
+		return x*A+B;
+	}
+	
+	private double f(double x, double A1, double B1, double A2, double B2, double k, double x0) {
+		double alpha = 1.0/(1+Math.exp(-k*(x-x0)));
+		return (1-alpha)*f1(x,A1,B1)+alpha*f1(x,A2,B2);
+	}
+	
 	private double[] fit(double x_start, double x_finish) {
 		
 		double xymean = 0;
@@ -168,7 +187,7 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 		g.fillRect(0, 0, drawingWidth, drawingHeight);
 		
 		// data
-		if(currentFile != null) {
+		if(currentFiles != null) {
 			
 			//axis
 			g.setColor(Color.black);
@@ -193,9 +212,16 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 			double Tg = (ab2[1]-ab1[1])/(ab1[0]-ab2[0]);
 			double V = (ab1[0]*Tg+ab1[1]);
 			g.fillOval(x(Tg)-8, y(V)-8, 15, 15);
-			AttributedString Tg_str = new AttributedString(String.format(Locale.ENGLISH,"Tg = %.4f",Tg));
+			AttributedString Tg_str = new AttributedString(String.format(Locale.ENGLISH,"Tg = %.4f k=%.1f",Tg,k));
 			Tg_str.addAttribute(TextAttribute.SUPERSCRIPT, TextAttribute.SUPERSCRIPT_SUB, 1,2);
 			g.drawString(Tg_str.getIterator(), x(Tg)+5, y(V)+20);
+			
+			//curve
+			g.setColor(Color.black);
+			double[] curve_y = curve(curve_x,ab1[0],ab1[1],ab2[0],ab2[1],k);
+			for(int i=1; i<curve_y.length; i++) {
+				g.drawLine(x(curve_x[i-1]), y(curve_y[i-1]), x(curve_x[i]), y(curve_y[i]));
+			}
 			
 			//reference lines
 			g.setColor(Color.cyan);
@@ -249,74 +275,90 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 		return (double)(x-axisWidth)*(max_t-min_t)/(double)plotWidth + min_t;
 	}
 	
-	public void loadFile(File dataFile) {
+	public void loadFiles(File[] dataFiles) {
 		
 		boolean errorOccured = false;
-		
 		int lines = 0;
+		double[] t = null;
+		double[] volume = null;
 		
-		try(LineNumberReader lnr = new LineNumberReader(new FileReader(dataFile))) {
+		try(LineNumberReader lnr = new LineNumberReader(new FileReader(dataFiles[0]))) {
 			lnr.skip(Long.MAX_VALUE);
 			lines = lnr.getLineNumber();
 		} catch (IOException e) {
 			errorOccured = true;
 		}
 		
-		if(!errorOccured)
-		try(BufferedReader br = new BufferedReader(new FileReader(dataFile))) {
-						
+		if(!errorOccured) {
 			
-			double[] t = new double[lines];
-			double[] volume = new double[lines];
-			
+			t = new double[lines];
+			volume = new double[lines];
+			for(int i=0; i<dataFiles.length; i++) {
+				
+				try(BufferedReader br = new BufferedReader(new FileReader(dataFiles[i]))) {
+					for(int j=0; j<lines; j++) {
+						StringTokenizer st = new StringTokenizer(br.readLine());
+						t[j] += Double.parseDouble(st.nextToken());
+						volume[j] += Double.parseDouble(st.nextToken());
+					}
+				} catch(IOException e) {
+					errorOccured = true;
+				}
+				
+			}
+		}
+		
+		if(!errorOccured) {
+
+			for(int j=0; j<lines; j++) {
+				t[j] /= (double)(dataFiles.length);
+				volume[j] /= (double)(dataFiles.length);
+			}
+
 			max_t = max_volume = Double.MIN_VALUE;
 			min_t = min_volume = Double.MAX_VALUE;
-			
-			for(int i=0; i<lines; i++) {
-				StringTokenizer st = new StringTokenizer(br.readLine());
-				t[i] = Double.parseDouble(st.nextToken());
-				volume[i] = Double.parseDouble(st.nextToken());
-				if(t[i]>max_t)
-					max_t = t[i];
-				if(t[i]<min_t)
-					min_t = t[i];
-				if(volume[i]>max_volume)
-					max_volume = volume[i];
-				if(volume[i]<min_volume)
-					min_volume = volume[i];
-				
-				refX[0] = (min_t+max_t)*0.1;
-				refX[1] = (min_t+max_t)*0.4;
-				refX[2] = (min_t+max_t)*0.6;
-				refX[3] = (min_t+max_t)*0.9;
+			for(int j=0; j<lines; j++) {
+				if(t[j]>max_t)
+					max_t = t[j];
+				if(t[j]<min_t)
+					min_t = t[j];
+				if(volume[j]>max_volume)
+					max_volume = volume[j];
+				if(volume[j]<min_volume)
+					min_volume = volume[j];
 			}
+			refX[0] = (min_t+max_t)*0.1;
+			refX[1] = (min_t+max_t)*0.4;
+			refX[2] = (min_t+max_t)*0.6;
+			refX[3] = (min_t+max_t)*0.9;
 			
-			
+			curve_x = new double[101];
+			for(int i=0; i<101; i++) {
+				curve_x[i] = min_t + (max_t-min_t)*(double)i/100.0;
+			}
+		
+			currentFiles = dataFiles;
+			repaint();
 			
 			this.t = t;
 			this.volume = volume;
 			
-		} catch (IOException e) {
-			errorOccured = true;
-		} finally {
-			if(!errorOccured) {
-				currentFile = dataFile;
-			} else {
-				currentFile = null;
-				t = null;
-				volume = null;
-			}
-			repaint();
+		} else {
+			currentFiles = null;
+			t = null;
+			volume = null;
 		}
 		
-		if(currentFile != null) {	
-			fileNameLabel.setText(currentFile.getName());
-			window.setTitle(currentFile.getName()+" — "+appName);
-			try{
-				fileNameLabel.setToolTipText(currentFile.getCanonicalPath());
-			} catch (IOException e) {
-				
+		if(currentFiles != null) {
+			String str = String.format(Locale.ENGLISH,"%d files :",currentFiles.length);
+			String str_prefix = "";
+			for(int i=0; i<currentFiles.length; i++) {
+				str += str_prefix+currentFiles[i].getName();
+				str_prefix = ",";
 			}
+			fileNameLabel.setText(str);
+			window.setTitle(str);
+			fileNameLabel.setToolTipText(str);
 		}
 		
 	}
@@ -326,6 +368,7 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 		if((JButton)e.getSource() == openButton) {
 			JFileChooser chooser = new JFileChooser();
 			chooser.setAcceptAllFileFilterUsed(false);
+			chooser.setMultiSelectionEnabled(true);
 			chooser.addChoosableFileFilter(new FileFilter(){
 				@Override
 				public boolean accept(File f) {
@@ -349,11 +392,11 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 			});
 			chooser.setCurrentDirectory(defaultFilePath);
 			chooser.showDialog(window, "Choose data file");
-			File tmp = chooser.getSelectedFile();
+			File[] tmp = chooser.getSelectedFiles();
 			if(tmp != null) {
 				PrintStream ps = null;
 				try {
-					defaultFilePath = tmp.getParentFile().getCanonicalFile();
+					defaultFilePath = tmp[0].getParentFile().getCanonicalFile();
 					ps = new PrintStream(new FileOutputStream(settingsFilePath));
 					ps.println("fp="+defaultFilePath.getPath());
 				} catch (IOException ee) {
@@ -362,18 +405,19 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 					if(ps!=null)
 						ps.close();
 				}
-				loadFile(tmp);
+				loadFiles(tmp);
 			}
 		}
 	}
 	
 	@Override
 	public void mouseWheelMoved(MouseWheelEvent e) {
-		if(overRefN!=-1) {
-			int tmp = x(refX[overRefN]) - e.getUnitsToScroll()/e.getScrollAmount();
-			double xx_ = xx(tmp);
-			refX[overRefN] = xx_ > max_t ? max_t : (xx_< min_t ? min_t : xx_);
-		}
+//		if(overRefN!=-1) {
+//			int tmp = x(refX[overRefN]) - e.getUnitsToScroll()/e.getScrollAmount();
+//			double xx_ = xx(tmp);
+//			refX[overRefN] = xx_ > max_t ? max_t : (xx_< min_t ? min_t : xx_);
+//		}
+		k += .1*e.getUnitsToScroll()/e.getScrollAmount();
 		repaint();
 	}
 
@@ -389,7 +433,7 @@ public class Approximizer extends JPanel implements ActionListener, MouseMotionL
 
 	@Override
 	public void mouseMoved(MouseEvent e) {
-		if(currentFile!=null) {
+		if(currentFiles!=null) {
 			int x_ = e.getX();
 			if(Math.abs(x_shift = x_-x(refX[0]))<5) {
 				setCursor(Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR));

@@ -13,7 +13,7 @@ cells with the same conditions)
 
 ###Demonstration
 
-![animated demo](https://github.com/petrov-aa/approximizer_cte/blob/master/demo/approximizer.gif "Animated demo")
+![animated demo](https://github.com/petrov-aa/approximizer_cte/blob/master/demo/approximizer_demo.gif "Animated demo")
 
 ###Input files
 
